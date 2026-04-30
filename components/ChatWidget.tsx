@@ -3,7 +3,6 @@
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef, useState } from 'react';
 
-/** Expand icon */
 function ExpandIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -13,7 +12,6 @@ function ExpandIcon() {
   );
 }
 
-/** Collapse icon */
 function CollapseIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -51,18 +49,25 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen]);
 
-  // Detect when the model is actively calling the inventory tool
   const lastMsg = messages[messages.length - 1];
   const isCallingTool =
     isLoading &&
     lastMsg?.role === 'assistant' &&
-    // @ts-ignore — toolInvocations exists at runtime in AI SDK 4.x
+    // @ts-ignore
     (lastMsg?.toolInvocations?.length ?? 0) > 0 &&
     // @ts-ignore
     lastMsg?.toolInvocations?.some((t: any) => t.state === 'call' || t.state === 'partial-call');
 
-  // Skip empty-content assistant messages (tool-call intermediates that caused blank bubbles)
-  const visibleMessages = messages.filter((m) => m.content.trim() !== '');
+  // Only hide assistant messages that have NO text AND have completed tool invocations.
+  // Never hide: user messages, messages with text, or messages still streaming.
+  const visibleMessages = messages.filter((m) => {
+    if (m.role !== 'assistant') return true;
+    if (m.content.trim() !== '') return true;
+    // @ts-ignore
+    const invocations: any[] = (m as any).toolInvocations ?? [];
+    const allDone = invocations.length > 0 && invocations.every((t: any) => t.state === 'result');
+    return !allDone;
+  });
 
   const panelStyle = isExpanded
     ? { width: 'min(620px, calc(100vw - 32px))', height: 'min(740px, calc(100vh - 100px))' }
@@ -107,25 +112,19 @@ export default function ChatWidget() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-
-            {/* Error banner */}
             {error && (
               <div className="bg-red-900/30 border border-red-500/30 rounded-xl p-3 text-xs text-red-300 flex items-start gap-2">
                 <span className="shrink-0">⚠️</span>
                 <div>
                   <p className="font-semibold mb-1">Error de conexión</p>
                   <p className="text-red-400">{error.message}</p>
-                  <button
-                    onClick={() => reload()}
-                    className="mt-2 text-indigo-300 hover:text-white underline text-xs"
-                  >
+                  <button onClick={() => reload()} className="mt-2 text-indigo-300 hover:text-white underline text-xs">
                     Reintentar →
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Visible messages only — empty-content messages filtered out */}
             {visibleMessages.map((m) => (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'assistant' && <span className="text-base mr-2 mt-1 shrink-0">🤖</span>}
@@ -142,7 +141,6 @@ export default function ChatWidget() {
               </div>
             ))}
 
-            {/* Loading indicator with tool-call awareness */}
             {isLoading && (
               <div className="flex justify-start">
                 <span className="text-base mr-2 mt-1">🤖</span>
@@ -152,11 +150,7 @@ export default function ChatWidget() {
                   ) : (
                     <div className="flex gap-1.5 items-center">
                       {[0, 150, 300].map((delay) => (
-                        <span
-                          key={delay}
-                          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: `${delay}ms` }}
-                        />
+                        <span key={delay} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
                       ))}
                     </div>
                   )}
