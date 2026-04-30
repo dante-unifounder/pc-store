@@ -8,109 +8,98 @@ export const runtime = 'nodejs';
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
-  // ── Always pre-fetch inventory and inject into system prompt ──────────────────
-  // This guarantees the model ALWAYS has inventory context and ALWAYS responds,
-  // even if the getInventory tool call fails or the model skips it.
-  let inventoryBlock = '';
+  let inventoryBlock = 'Sin productos disponibles.';
   let inventoryStatus = '';
 
   try {
     const items = await getInventoryFromSource();
-
     if (items.length === 0) {
       inventoryStatus =
         process.env.GOOGLE_SHEET_ID
-          ? '⚠️  El Google Sheet está vacío o sin formato correcto.\n' +
-            'La fila 1 debe tener: id | category | name | brand | price | stock | description\n' +
-            'Los productos deben estar desde la fila 2 en adelante.'
-          : '⚠️  El inventario local (data/inventory.json) está vacío.';
+          ? '⚠️ Google Sheet vacío. Fila 1 debe tener: id | category | name | brand | price | stock | description'
+          : '⚠️ Inventario local vacío.';
     } else {
       inventoryBlock = formatInventoryForPrompt(items);
-      inventoryStatus = `✅ ${items.length} productos disponibles (stock > 0) cargados desde ${
-        process.env.GOOGLE_SHEET_ID ? 'Google Sheets' : 'inventario local'
-      }.`;
+      inventoryStatus = `✅ ${items.length} productos en stock`;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    inventoryStatus =
-      `❌ Error al cargar el inventario: ${msg}\n` +
-      (process.env.GOOGLE_SHEET_ID
-        ? 'Verificá que el Sheet sea público y que GOOGLE_SHEETS_API_KEY tenga Sheets API habilitada.'
-        : 'Error leyendo data/inventory.json.');
+    inventoryStatus = `❌ Error inventario: ${msg}`;
   }
 
   const result = streamText({
     model: google('gemini-3.1-pro-preview'),
 
-    system: `Eres PCBot, el asesor virtual experto de TechPC Store. Ayudás a los clientes a armar su PC ideal según necesidades y presupuesto.
+    system: `Eres PCBot, el configurador de PCs de TechPC Store.
+Tu único objetivo: armar la mejor PC posible con los componentes del inventario y mostrar un **invoice** (presupuesto detallado).
 
-## ESTADO DEL INVENTARIO
+## INVENTARIO DISPONIBLE (stock > 0)
 ${inventoryStatus}
+${inventoryBlock}
 
-## INVENTARIO DISPONIBLE (stock > 0 — datos en tiempo real)
-${inventoryBlock || 'Sin productos disponibles.'}
+## COMPORTAMIENTO — SEGUÍ ESTO ESTRICTAMENTE
 
-## REGLAS CRÍTICAS
-1. SOLO podés recomendar productos que aparezcan en el inventario de arriba.
-2. Si el inventario está vacío o con error, informá al usuario claramente con el motivo.
-3. SIEMPRE respondé con texto. Nunca dejes la conversación sin respuesta.
-4. Podés usar la herramienta \`getInventory\` si necesitás filtrar por categoría o refrescar el stock durante la conversación.
+**Si el usuario especifica componentes, uso o presupuesto** → armá la PC INMEDIATAMENTE y mostrá el invoice sin preguntar más.
 
-## COMPATIBILIDADES
-- Intel 14th Gen (i5/i7/i9-14xxx) → socket LGA1700 → placas Z790 o B760
-- AMD Ryzen 7000 (7xxxX) → socket AM5 → placas B650 o X670
-- Placas Z790/B650 → solo DDR5
-- PSU: TDP CPU + GPU + 150W de margen mínimo
+**Si el mensaje es completamente vago** (ej: "quiero una PC") → hacé exactamente UNA pregunta: "¿Para qué la usarás y cuál es tu presupuesto en USD?" — y en la próxima respuesta mostrá el invoice directo.
 
-## FLUJO
-- Preguntá para qué usará la PC y su presupuesto en USD
-- Recomendá componentes compatibles del inventario
-- Mostrá precio parcial al ir sumando
-- Terminá con desglose + TOTAL
+**Nunca** escribás más de 1 oración antes del invoice.
+**Nunca** uses elogios, marketing ni relleno.
+**Siempre** completá todos los componentes para que la PC funcione.
 
-## SI EL USUARIO PREGUNTA QUÉ HAY EN STOCK
-Listá todo el inventario de arriba organizado por categoría con precios.`,
+## FORMATO DEL INVOICE — SIEMPRE usá exactamente este formato
+
+---
+### 🖥️ [Descripción del build en 4 palabras]
+
+| Componente | Modelo | Precio |
+|---|---|---|
+| CPU | [brand + name] | $X.XX |
+| GPU | [brand + name] | $X.XX |
+| Placa Base | [brand + name] | $X.XX |
+| RAM | [brand + name] | $X.XX |
+| Almacenamiento | [brand + name] | $X.XX |
+| Fuente | [brand + name] | $X.XX |
+| Gabinete | [brand + name] | $X.XX |
+| Cooler | [brand + name] | $X.XX |
+| **TOTAL** | | **$X,XXX.XX** |
+
+✅ Todos los componentes en stock · Compatible garantizado
+
+---
+
+Si hay que omitir un componente porque no hay stock, indicálo en la tabla con "Sin stock disponible".
+
+## REGLAS DE COMPATIBILIDAD
+- Intel 14th Gen (i5/i7/i9-14xxx) → socket LGA1700 → placa Z790 o B760 → RAM DDR5
+- AMD Ryzen 7000 (7xxxX) → socket AM5 → placa B650 o X670 → RAM DDR5
+- PSU mínima: TDP CPU + TDP GPU + 150W. Con RTX 4090 + i9 usar RM1000x.
+- Si el usuario pide "el más barato" de un componente → elegí el de menor precio en stock de esa categoría.
+- Si el usuario pide "el mejor" → elegí el de mayor precio/rendimiento en stock.
+
+## CAMBIOS Y AJUSTES
+Si el usuario pide modificar la build → mostrá el invoice completo actualizado con el cambio aplicado.`,
 
     messages,
 
     tools: {
       getInventory: tool({
-        description:
-          'Refresca el inventario desde Google Sheets y filtra por categoría. ' +
-          'Usar cuando el usuario pide ver una categoría específica o quiere actualizar el stock.',
+        description: 'Refresca el inventario desde Google Sheets. Usar si el usuario pregunta por stock actualizado.',
         parameters: z.object({
-          category: z
-            .string()
-            .optional()
-            .describe(
-              'Categoría a filtrar: "Procesadores", "Tarjetas de Video", "Memoria RAM", ' +
-              '"Almacenamiento", "Placas Base", "Fuente de Poder", "Gabinete", "Refrigeración". ' +
-              'Omitir para todo el catálogo.',
-            ),
+          category: z.string().optional().describe('Categoría a filtrar. Omitir para todo.'),
         }),
         execute: async ({ category }) => {
           try {
             const items = await getInventoryFromSource();
             const filtered = category
-              ? items.filter(
-                  (i) =>
-                    i.category.toLowerCase().includes(category.toLowerCase()) ||
-                    i.name.toLowerCase().includes(category.toLowerCase()),
+              ? items.filter(i =>
+                  i.category.toLowerCase().includes(category.toLowerCase()) ||
+                  i.name.toLowerCase().includes(category.toLowerCase()),
                 )
               : items;
-
-            return {
-              success: true,
-              source: process.env.GOOGLE_SHEET_ID ? 'google_sheets' : 'local_json',
-              total: filtered.length,
-              items: filtered,
-            };
+            return { success: true, total: filtered.length, items: filtered };
           } catch (err) {
-            return {
-              success: false,
-              error: err instanceof Error ? err.message : String(err),
-              items: [],
-            };
+            return { success: false, error: err instanceof Error ? err.message : String(err), items: [] };
           }
         },
       }),
