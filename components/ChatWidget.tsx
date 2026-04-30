@@ -2,6 +2,8 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 function ExpandIcon() {
   return (
@@ -58,8 +60,6 @@ export default function ChatWidget() {
     // @ts-ignore
     lastMsg?.toolInvocations?.some((t: any) => t.state === 'call' || t.state === 'partial-call');
 
-  // Only hide assistant messages that have NO text AND have completed tool invocations.
-  // Never hide: user messages, messages with text, or messages still streaming.
   const visibleMessages = messages.filter((m) => {
     if (m.role !== 'assistant') return true;
     if (m.content.trim() !== '') return true;
@@ -118,9 +118,7 @@ export default function ChatWidget() {
                 <div>
                   <p className="font-semibold mb-1">Error de conexión</p>
                   <p className="text-red-400">{error.message}</p>
-                  <button onClick={() => reload()} className="mt-2 text-indigo-300 hover:text-white underline text-xs">
-                    Reintentar →
-                  </button>
+                  <button onClick={() => reload()} className="mt-2 text-indigo-300 hover:text-white underline text-xs">Reintentar →</button>
                 </div>
               </div>
             )}
@@ -135,7 +133,33 @@ export default function ChatWidget() {
                       : 'bg-gray-800 text-gray-100 rounded-bl-sm border border-gray-700/50'
                   }`}
                 >
-                  <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
+                  {m.role === 'user' ? (
+                    <p className="whitespace-pre-wrap">{m.content}</p>
+                  ) : (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ children }) => <h1 className="text-base font-bold mt-2 mb-1 text-white">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-sm font-bold mt-2 mb-1 text-white">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-xs font-bold mt-3 mb-1 text-indigo-300 uppercase tracking-wide">{children}</h3>,
+                        p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5 my-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 space-y-0.5 my-1">{children}</ol>,
+                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                        em: ({ children }) => <em className="italic text-gray-300">{children}</em>,
+                        code: ({ children }) => <code className="bg-gray-700/80 text-indigo-200 rounded px-1 py-0.5 text-xs font-mono">{children}</code>,
+                        pre: ({ children }) => <pre className="bg-gray-700/60 rounded-lg p-2 my-1 overflow-x-auto text-xs">{children}</pre>,
+                        blockquote: ({ children }) => <blockquote className="border-l-2 border-indigo-500 pl-3 my-1 text-gray-400 italic">{children}</blockquote>,
+                        hr: () => <hr className="border-gray-600 my-2" />,
+                        table: ({ children }) => <table className="w-full text-xs my-2 border-collapse">{children}</table>,
+                        th: ({ children }) => <th className="border border-gray-600 px-2 py-1 text-left font-semibold bg-gray-700/50">{children}</th>,
+                        td: ({ children }) => <td className="border border-gray-600 px-2 py-1">{children}</td>,
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  )}
                 </div>
                 {m.role === 'user' && <span className="text-base ml-2 mt-1 shrink-0">👤</span>}
               </div>
