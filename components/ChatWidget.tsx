@@ -3,9 +3,41 @@
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef, useState } from 'react';
 
+/** Expand icon — two outward-pointing corner arrows */
+function ExpandIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  );
+}
+
+/** Collapse icon — two inward-pointing corner arrows */
+function CollapseIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+      <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+      <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+      <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+    </svg>
+  );
+}
+
 export default function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Listen for external “open chat” trigger (hero buttons, CTA band, etc.) ──
+  useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener('open-pcbot', handleOpen);
+    return () => window.removeEventListener('open-pcbot', handleOpen);
+  }, []);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     api: '/api/chat',
@@ -25,13 +57,26 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen]);
 
+  // ── Panel dimensions — normal vs expanded ──
+  const panelStyle = isExpanded
+    ? {
+        width: 'min(620px, calc(100vw - 32px))',
+        height: 'min(740px, calc(100vh - 100px))',
+      }
+    : {
+        width: 'min(380px, calc(100vw - 32px))',
+        height: '520px',
+      };
+
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+      {/* ── Chat Panel ── */}
       {isOpen && (
         <div
-          className="flex flex-col bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl overflow-hidden"
-          style={{ width: '380px', height: '520px' }}
+          className="flex flex-col bg-gray-900 border border-gray-700/60 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-in-out"
+          style={panelStyle}
         >
+          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-xl">🤖</span>
@@ -43,19 +88,40 @@ export default function ChatWidget() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-white/70 hover:text-white transition-colors text-lg font-medium w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10"
-              aria-label="Cerrar chat"
-            >
-              ✕
-            </button>
+
+            <div className="flex items-center gap-1">
+              {/* Expand / Collapse button */}
+              <button
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="text-white/70 hover:text-white transition-colors w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10"
+                aria-label={isExpanded ? 'Reducir chat' : 'Expandir chat'}
+                title={isExpanded ? 'Reducir' : 'Expandir'}
+              >
+                {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+              </button>
+
+              {/* Close button */}
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-white/70 hover:text-white transition-colors w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/10 text-base font-medium"
+                aria-label="Cerrar chat"
+                title="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
             {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {m.role === 'assistant' && <span className="text-base mr-2 mt-1 shrink-0">🤖</span>}
+              <div
+                key={m.id}
+                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                {m.role === 'assistant' && (
+                  <span className="text-base mr-2 mt-1 shrink-0">🤖</span>
+                )}
                 <div
                   className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     m.role === 'user'
@@ -65,16 +131,24 @@ export default function ChatWidget() {
                 >
                   <pre className="whitespace-pre-wrap font-sans">{m.content}</pre>
                 </div>
-                {m.role === 'user' && <span className="text-base ml-2 mt-1 shrink-0">👤</span>}
+                {m.role === 'user' && (
+                  <span className="text-base ml-2 mt-1 shrink-0">👤</span>
+                )}
               </div>
             ))}
+
+            {/* Typing indicator */}
             {isLoading && (
               <div className="flex justify-start">
                 <span className="text-base mr-2 mt-1">🤖</span>
                 <div className="bg-gray-800 border border-gray-700/50 rounded-2xl rounded-bl-sm px-4 py-3">
                   <div className="flex gap-1.5 items-center">
                     {[0, 150, 300].map((delay) => (
-                      <span key={delay} className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                      <span
+                        key={delay}
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: `${delay}ms` }}
+                      />
                     ))}
                   </div>
                 </div>
@@ -83,7 +157,11 @@ export default function ChatWidget() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={handleSubmit} className="flex gap-2 px-3 py-3 border-t border-gray-700/60 bg-gray-900 shrink-0">
+          {/* Input */}
+          <form
+            onSubmit={handleSubmit}
+            className="flex gap-2 px-3 py-3 border-t border-gray-700/60 bg-gray-900 shrink-0"
+          >
             <input
               value={input}
               onChange={handleInputChange}
@@ -103,16 +181,20 @@ export default function ChatWidget() {
         </div>
       )}
 
+      {/* ── Toggle Button ── */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 ${
-          isOpen ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gradient-to-br from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white'
+          isOpen
+            ? 'bg-gray-700 hover:bg-gray-600 text-white'
+            : 'bg-gradient-to-br from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white'
         }`}
         aria-label={isOpen ? 'Cerrar chat' : 'Abrir asesor de PC'}
       >
         <span className="text-2xl">{isOpen ? '✕' : '💬'}</span>
       </button>
 
+      {/* Green dot — only when closed */}
       {!isOpen && (
         <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-gray-950 animate-pulse-slow" />
       )}

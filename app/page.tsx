@@ -1,4 +1,5 @@
 import ChatWidget from '@/components/ChatWidget';
+import OpenChatButton from '@/components/OpenChatButton';
 
 const categories = [
   { icon: '⚡', label: 'Procesadores', sub: 'Intel & AMD', color: 'from-blue-500/20 to-blue-600/10' },
@@ -71,9 +72,9 @@ export default function HomePage() {
             Describí para qué vas a usar la PC y tu presupuesto. Nuestro asesor inteligente te arma la configuración perfecta con los componentes que tenemos en stock.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="#" className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 px-8 py-4 text-base font-bold text-white shadow-xl shadow-indigo-500/20 transition-all hover:scale-105">
+            <OpenChatButton className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 px-8 py-4 text-base font-bold text-white shadow-xl shadow-indigo-500/20 transition-all hover:scale-105">
               💬 Hablar con PCBot gratis
-            </a>
+            </OpenChatButton>
             <a href="#categorias" className="w-full sm:w-auto rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-8 py-4 text-base font-semibold text-white transition-all hover:border-white/20">
               Ver componentes →
             </a>
@@ -148,9 +149,9 @@ export default function HomePage() {
       <section className="mx-6 my-8 overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 px-8 py-16 text-center shadow-2xl shadow-indigo-500/20">
         <h2 className="mb-4 text-3xl md:text-4xl font-extrabold text-white">¿Listo para armar tu PC?</h2>
         <p className="mb-8 text-indigo-100 text-lg">Hablá con PCBot ahora. Es gratis, inteligente y tiene el stock actualizado.</p>
-        <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 font-bold text-indigo-700 shadow-lg transition-all hover:scale-105 cursor-pointer">
+        <OpenChatButton className="inline-flex items-center gap-2 rounded-2xl bg-white px-8 py-4 font-bold text-indigo-700 shadow-lg transition-all hover:scale-105">
           <span>💬</span><span>Iniciar chat con PCBot</span>
-        </div>
+        </OpenChatButton>
       </section>
 
       <section id="faq" className="px-6 py-24">
